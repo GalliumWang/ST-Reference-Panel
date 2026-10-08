@@ -1,0 +1,16 @@
+{
+  "display_name": "引用面板 · Reference Panel",
+  "loading_order": 100,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Gallium Wang",
+  "version": "1.0.0",
+  "homePage": "https://github.com/GalliumWang/ST-Reference-Panel",
+  "auto_update": true,
+  "hooks": {
+    "enable": "onEnable",
+    "disable": "onDisable"
+  }
+}

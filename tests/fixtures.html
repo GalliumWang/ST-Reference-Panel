@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>引用面板 · 本地验证</title>
+    <link rel="stylesheet" href="/scripts/extensions/third-party/ST-Reference-Panel/style.css">
+    <style>
+        :root { color-scheme: dark; --SmartThemeBodyColor: #e6e9ee; --SmartThemeBorderColor: #4c5360; --SmartThemeBlurTintColor: #20252d; --SmartThemeQuoteColor: #a2c8b1; }
+        body { margin: 0; background: #15191f; color: #e6e9ee; font: 15px system-ui, sans-serif; }
+        main { margin: 50px auto; max-width: 800px; padding: 20px; }
+        #extensionsMenu { display: flex; gap: 10px; }
+        .list-group-item { border: 1px solid #4c5360; padding: 12px; border-radius: 8px; cursor: pointer; }
+        .flex-container { display: flex; }.flexGap5 { gap: 5px; }
+        p { line-height: 1.7; opacity: .75; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>SillyTavern 引用面板</h1>
+        <p>本地验证环境 · 直接加载扩展文件 · 使用虚构的角色卡和世界书数据</p>
+        <div id="extensionsMenu"></div>
+        <div id="extensions_settings2" hidden></div>
+    </main>
+    <script>
+        const fullCharacters = [
+            { name: '林晚', avatar: 'lin.png', description: '林晚是住在月光街区的书店店主。她说话温和，喜欢收集旧地图，遇到熟悉的人时会主动分享新发现。\n\n她与邻居保持着友好的关系，也会认真倾听来访者的故事。',
+                personality: '温和、细心，偶尔会因好奇心而忘记时间。', scenario: '傍晚的书店，窗外刚下过一场雨。',
+                first_mes: '你来得正好，今天收到一本有意思的旧书。', mes_example: '<START>\n{{char}}: 要不要一起看看这张地图？',
+                data: { system_prompt: '保持自然对话。', post_history_instructions: '', creator_notes: '测试角色',
+                    alternate_greetings: ['第一段问候', '第二段问候'], extensions: { depth_prompt: { prompt: '保持人物性格一致。' },
+                        自定义: { 力量: 0, 已解锁: false, 'a.b': ["引号 O'Brien", '特殊路径'] } } } },
+            { name: '明月的姐姐', avatar: 'sister.png', description: '姐姐的描述', data: {} },
+            { name: '明月', avatar: 'moon.png', description: '明月的描述', data: {} },
+            { name: "O'Brien[旧]", avatar: 'quote.png', description: '<script>window.fixtureInjected = true<\/script><img src=x onerror="window.fixtureInjected=true">', data: {} },
+        ];
+        for (let i = 0; i < 72; i++) fullCharacters.push({ name: `测试角色 ${i}`, avatar: `test-${i}.png`, description: `第 ${i} 张卡`, data: {} });
+        const books = {
+            '城市设定': { entries: {
+                0: { uid: 0, comment: '月光街区', key: ['月光', '街区'], content: '月光街区位于旧城区与河岸之间。街道两侧分布着书店、咖啡馆和居民住宅。\n\n每到傍晚，沿河的路灯会依次亮起，附近的居民常在这里散步。', displayIndex: 0 },
+                1: { uid: 1, comment: '[设定]人物关系', key: ['关系'], content: '林晚与邻居们相处融洽。', displayIndex: 1 },
+                2: { uid: 2, comment: '月', key: ['月'], content: '月的精确条目', disable: true, displayIndex: 2 },
+                3: { uid: 3, comment: '', key: [], content: '无标题内容', displayIndex: 3 },
+                10: { uid: 10, comment: '重复标题', key: ['重复'], content: '第一个重复条目', displayIndex: 4 },
+                20: { uid: 20, comment: '重复标题', key: ['重复'], content: '第二个重复条目', displayIndex: 5 },
+            } },
+            '慢速世界书': { entries: { 0: { uid: 0, comment: '慢速条目', key: [], content: '慢速内容' } } },
+            '读取失败': { entries: { 0: { uid: 0, comment: '恢复后的条目', key: [], content: '恢复' } } },
+        };
+        window.fixtureDelays = { '慢速世界书': 250 };
+        window.fixtureFailures = new Set(['读取失败']);
+        window.fixtureLoads = [];
+        window.fixtureInjected = false;
+        const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+        const worldNames = () => Object.keys(books);
+        const loadWorld = async name => {
+            await sleep(window.fixtureDelays[name] ?? 0);
+            if (window.fixtureFailures.has(name)) throw new Error('模拟读取失败');
+            return books[name];
+        };
+        window.fixtureWorldNames = worldNames;
+        window.fixtureLoadWorld = loadWorld;
+        const context = {
+            characters: fullCharacters.map(c => ({ name: c.name, avatar: c.avatar, shallow: true })),
+            extensionSettings: JSON.parse(localStorage.getItem('srp-fixture-settings') || '{}'),
+            powerUserSettings: { lazy_load_characters: true },
+            async unshallowCharacter(index) {
+                const current = this.characters[index];
+                if (!current?.shallow) return;
+                window.fixtureLoads.push(current.avatar);
+                await sleep(window.fixtureDelays[current.avatar] ?? 0);
+                const actual = this.characters.findIndex(c => c.avatar === current.avatar);
+                if (actual >= 0) this.characters[actual] = structuredClone(fullCharacters.find(c => c.avatar === current.avatar));
+            },
+            getWorldInfoNames: worldNames,
+            loadWorldInfo: loadWorld,
+            getThumbnailUrl: () => '/avatar.svg',
+            saveSettingsDebounced() { localStorage.setItem('srp-fixture-settings', JSON.stringify(this.extensionSettings)); },
+        };
+        window.fixtureContext = context;
+        window.SillyTavern = { getContext: () => context };
+    </script>
+    <script type="module" src="/scripts/extensions/third-party/ST-Reference-Panel/index.js"></script>
+</body>
+</html>
