@@ -86,6 +86,8 @@
 .srp-manual { font-size: 13px; }
 .srp-settings { padding: 12px; margin: 8px 0; border: 1px solid var(--SmartThemeBorderColor, #4c5260); border-radius: 8px; }
 .srp-settings p { margin: 8px 0; font-size: 13px; }
+/* ST's .menu_button uses min-content, which wraps Chinese labels per character. */
+.srp-settings .menu_button { width: fit-content; max-width: 100%; white-space: nowrap; }
 @media (max-width: 680px) {
     .srp-dialog { width: calc(100vw - 12px); max-width: calc(100vw - 12px); height: calc(100vh - 12px); height: calc(100dvh - 12px); max-height: calc(100dvh - 12px); border-radius: 10px; }
     .srp-header { padding: 12px 12px 8px; }

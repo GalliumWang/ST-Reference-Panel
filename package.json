@@ -1,6 +1,6 @@
 {
   "name": "st-reference-panel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "description": "SillyTavern character and lorebook reference picker for ST-Prompt-Template",
