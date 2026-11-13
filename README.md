@@ -1,6 +1,6 @@
 # 引用面板 · ST Reference Panel
 
-一个独立的 SillyTavern 扩展，用来搜索角色卡字段和世界书条目，并复制 [ST-Prompt-Template](https://github.com/zonde306/ST-Prompt-Template) 的 EJS 引用模板。
+一个独立的 SillyTavern 扩展，用来浏览并检索**角色卡字段、世界书条目、酒馆变量、对话预设提示词与快速回复（QuickReply v2）**，一键生成、复制或直接插入 [ST-Prompt-Template](https://github.com/zonde306/ST-Prompt-Template) 的 EJS 引用模板。
 
 ## 通过 GitHub URL 安装
 
@@ -12,115 +12,125 @@
    ```
 
 3. 完成安装后刷新页面，确认“引用面板 · Reference Panel”已启用。
-4. 从聊天输入框附近的扩展菜单打开“引用面板”。扩展设置页也有“打开引用面板”按钮。
+4. 从聊天输入框旁的扩展菜单（魔棒菜单）点击 **引用面板**，或在扩展设置页点击 **打开引用面板**。
 
-需要安装并启用 [ST-Prompt-Template](https://github.com/zonde306/ST-Prompt-Template)，它负责执行引用模板。仓库根目录直接提供扩展运行文件，无需构建。
-
-电脑和手机连接同一个酒馆服务器时，安装一次后分别刷新页面即可。
+需要安装并启用 [ST-Prompt-Template](https://github.com/zonde306/ST-Prompt-Template)，它负责在发送消息或渲染提示词时执行 EJS 引用模板。本扩展直接加载原生 ES Module 文件，无需构建步骤，零运行时外部依赖。
 
 ## 手动安装
 
-1. 确保 SillyTavern 已安装并启用 ST-Prompt-Template。它负责执行复制出来的模板。
-2. 解压安装包，把整个 `ST-Reference-Panel` 文件夹放到酒馆的用户扩展目录：
+1. 确保 SillyTavern 已安装并启用 ST-Prompt-Template。
+2. 解压发布包 `ST-Reference-Panel-v1.1.0.zip`，将 `ST-Reference-Panel` 文件夹放入酒馆扩展目录：
 
    ```text
    SillyTavern/data/<用户目录>/extensions/ST-Reference-Panel/
    ```
 
-   默认用户通常是 `default-user`。文件夹内应直接包含 `manifest.json`、`index.js`、`core.js`、`adapter.js`、`panel.js`、`clipboard.js` 和 `style.css`，避免多套一层目录。
-
-   如果希望对服务器上的所有用户安装，也可以放到：
+   或全局扩展目录：
 
    ```text
    SillyTavern/public/scripts/extensions/third-party/ST-Reference-Panel/
    ```
 
-3. 刷新酒馆页面，在扩展管理中确认“引用面板 · Reference Panel”已启用。
-4. 从聊天输入框附近的扩展菜单打开“引用面板”。扩展设置页也提供“打开引用面板”按钮。
-
-电脑和手机连接同一个酒馆服务器时，安装一次后分别刷新页面即可。连接不同服务器时，需要分别安装。扩展直接加载 JavaScript 文件，无需运行 npm 或编译。
+   文件夹根目录应直接包含 `manifest.json`、`index.js`、`core.js`、`adapter.js`、`panel.js`、`clipboard.js` 和 `style.css`。
+3. 刷新酒馆页面即可使用。
 
 ## 界面预览
 
-下图使用虚构的角色和世界书数据。
+下图使用虚构的角色、世界书、变量与预设数据生成：
 
 ![电脑端世界书引用面板](docs/desktop-world.png)
 
 <img src="docs/mobile-world.png" alt="手机端世界书引用面板" width="320">
 
-## 使用
+## 核心功能（v1.1.0）
 
-### 引用角色字段
+### 1. 四大引用页签与多模板胶囊切换
 
-1. 打开“角色卡”页签，用角色名、卡文件名或标签搜索。
-2. 选择角色。常用字段提供中文名称；展开“全部字段”可逐层选择任意嵌套字段和数组元素。
-3. 搜索字段时会搜索完整字段树，包括尚未展开的字段。
-4. 查看源内容和模板，点击“复制引用”，再粘贴到需要引用它的角色卡、世界书或其他支持 EJS 的文本位置。
+#### 角色卡（`characters`）
+- 支持按角色名、文件名以及**酒馆 UI 标签**（合并 `tagMap` + 内嵌 `tags`）搜索。
+- 提供常用字段快捷入口与完整嵌套字段树（含数组下标、特殊键名精确路径）。
+- 模板胶囊选项：
+  - **指定角色 / 动态当前角色**：切换 `<%- (await getCharData('林晚'))?.description ?? '' %>` 与通用预设模板 `<%- (await getCharData())?.description ?? '' %>`。
+  - **兼容懒加载**：自动检测服务端角色懒加载（`shallow`），按名称动态求取下标执行 `await SillyTavern.unshallowCharacter?.(...)` 后读取数据，且浏览面板不会切换当前聊天。
+  - **精确正则匹配**：当角色名含正则元字符、与 `Array.prototype` 属性重名（如 `map`、`length`）或存在包含关系时自动启用锚定正则 `new RegExp('^...$')`，也可手动强制开启。
 
-普通文本字段的模板示例：
+#### 世界书（`worlds`）
+- 自动识别并置顶当前会话绑定的 5 类世界书，标注 `[主书]`、`[附加书]`、`[聊天书]`、`[Persona 书]`、`[全局书]` 徽章。
+- 模板胶囊选项：
+  - **指定书名 / 当前角色主书**：切换双参数 `getwi('书名', '条目')` 与单参数主世界书引用 `getwi('条目')`。
+  - **按标题 / 按 UID**：支持按条目标题（`comment`）或数字 `UID`（如 `<%- await getwi('城市设定', 12) -%>`）定位，无标题条目也可直接按 UID 引用；若同书存在包含该数字子串的条目标题会自动提示命中顺序风险。
+  - **getwi 读取 / activewi 激活**：一键切换内容嵌入 `<%- await getwi(...) -%>` 与动态激活 `<% await activewi(...) -%>`。
+  - **吞换行 `-%>` / 保留换行 `%>`** 及 **精确正则匹配**。
 
-```ejs
-<%- (await getCharData('林晚'))?.description ?? '' %>
+#### 变量（`variables`）
+- 聚合展示**合并生效视图**、**聊天局部变量（`local`）**、**全局变量（`global`）**、**最新楼层消息变量（`message`）**，并自动扫描当前关联世界书中标题含 `[InitialVariables]` 或正文含 `@@initial_variables` 的 JSON / YAML 初始变量结构。
+- 支持嵌套变量树点选与**手动输入任意自定义变量路径**（如 `stat.hp`、`flags.met_lin`）。
+- 支持一键切换生成 `getvar`、`setvar`、`incvar` 与 `if (getvar(...)) { ... }` 条件块，并可指定作用域参数（默认 / `local` / `global` / `message`）。
+
+#### 预设 / 快速回复（`presets`）
+- 读取对话补全预设（Chat Completion Presets）提示词列表，默认生成符合 ST-Prompt-Template 单参数签名的 `<%- await getpreset('条目名') -%>`（运行时读取当前激活预设）；浏览非当前激活预设时可切换为**指定预设静态读取**模式。
+- 读取 QuickReply v2 全局与聊天快速回复集合，生成 `<%- await getqr('集合名', '标签名') -%>`。
+
+### 2. 高效工作流增强
+
+- **⚡ 当前会话关联置顶**：每个页签顶部自动将当前角色、群聊成员、绑定世界书、当前预设与启用 QR 归入可折叠的关联分组。
+- **⭐ 收藏与最近历史**：常用引用模板可一键加星置顶，复制或插入过的模板自动记录到最近列表（持久化于 `extensionSettings.st_reference_panel`）。
+- **🧺 引用暂存篮（批量复制 / 批量插入）**：任意目标行或预览区点击 **+ 暂存**，可将跨页签的多条引用加入底部暂存篮，按序查看、移除、一键批量复制或批量插入。
+- **光标处直接插入**：打开面板前若焦点位于酒馆输入框或编辑器（`<textarea>` / `<input>` / `contentEditable`），底部自动显示 **插入光标处** 按钮，一键写回原光标选区并触发 `input` / `change` 事件。
+- **📌 悬浮小窗模式**：顶栏支持在**模态窗口**与**非模态悬浮小窗**（`z-index: 3200`）之间无缝切换；悬浮小窗支持拖拽标题栏移动、视口边界防丢保护，以及最小化为右下角胶囊按钮，方便边看世界书编辑器边插引用。
+- **实时热同步与穿透刷新**：监听 `WORLDINFO_UPDATED`、`CHARACTER_EDITED`、`CHAT_CHANGED` 等酒馆事件自动热更新；点击 **刷新列表** 会直连 `/api/worldinfo/get` 穿透陈旧缓存并保留当前搜索词、展开树与选中项。
+
+## 跨插件联动接口（`window.STReferencePanel`）
+
+启用后，扩展在 `globalThis.STReferencePanel` 暴露联动 API（禁用扩展时自动卸载），供世界书工作台、预设编辑器等外部插件调用：
+
+```js
+// 打开引用面板并接收用户点击“插入引用”或“批量插入”回传的模板
+window.STReferencePanel?.open({
+    tab: 'worlds',          // 可选：'characters' | 'worlds' | 'variables' | 'presets'
+    floating: true,         // 可选：true 以非模态悬浮小窗（z-index: 3200）打开
+    onInsert(template, meta) {
+        // meta: { mode: 'single' | 'batch', tab, label, ... }
+        console.log('插入模板：', template, meta);
+    },
+});
+
+// 关闭面板
+window.STReferencePanel?.close();
 ```
 
-未找到角色或字段时输出空文本。数字 `0` 和布尔值 `false` 会保留。
+## 电脑与手机端适配
 
-对象、数组会自动生成 `JSON.stringify(..., null, 2)`，输出可读的 JSON 文本。若只需要备用开场白中的一条，可以展开 `data` → `alternate_greetings` → 对应下标。
+- **局域网 HTTP 剪贴板兼容**：针对手机通过局域网 `http://192.168.x.x:8000` 访问酒馆（非安全上下文 `isSecureContext === false`）的场景，自动走同步临时解锁选区复制通道并恢复原焦点；若系统策略彻底拦截剪贴板，则自动全选模板并滚动至可视区供长按复制。
+- **移动端防遮挡与防缩放**：适配 `visualViewport` 软键盘高度变化、手机横屏矮视口（`max-height: 500px`）紧凑排版，以及触屏输入框 `16px` 字号防 iOS 自动放大。
+- **安全预览**：所有角色描述、世界书正文、变量值均以纯文本渲染（无 `innerHTML` 注入），绝不执行其中的脚本或 EJS 代码；超过 8,000 字符的超长原文默认折叠并提供“展开完整原文”按钮。
 
-开启角色懒加载时，模板会加入 `SillyTavern.unshallowCharacter(...)` 的完整数据读取步骤；角色下标在执行时按名称查找，避免导入或排序后指向其他卡。此功能需要酒馆提供该接口。面板按需加载选中的角色，不会切换当前聊天。
+## 开发、测试与打包
 
-### 引用世界书条目
+Node.js 22+ 环境下运行语法检查与单元测试：
 
-1. 打开“世界书”页签，搜索并选择世界书。
-2. 按标题、关键词或内容搜索条目。
-3. 选择条目并点击“复制引用”。
-
-普通名称的模板示例：
-
-```ejs
-<%- await getwi('城市设定', '月光街区') -%>
-```
-
-**引用使用条目的标题／备注（`comment`），始终按名称定位。** 列表里的 UID 仅用于帮助辨认条目。未启用的世界书和禁用的条目也会列出，读取内容遵循 ST-Prompt-Template 的 `getwi()` 行为。
-
-原插件会将角色名和条目名参与正则匹配。若名称含正则符号，或另一个名称包含它，面板会自动生成按名称精确匹配的 `new RegExp(...)` 参数。例如：
-
-```ejs
-<%- await getwi('城市设定', new RegExp('^\\[设定\\]人物关系$')) -%>
-```
-
-这仍然引用条目名称，避免读到相似标题。引号、反斜杠、换行、EJS 分隔符等会自动转义。
-
-## 电脑与手机
-
-- 电脑使用左右分栏：左侧选择目标，右侧预览。
-- 手机使用上下排列，选择角色或世界书后自动收起来源列表。底部始终保留复制按钮。
-- 复制后面板保持打开，方便继续选择引用。记住上次使用的页签。
-- 可用“选中模板”按钮手动复制。自动复制遇到浏览器权限或环境限制时，也会选中完整模板并提示使用系统复制菜单。
-- 电脑支持 Tab 键导航、左右方向键切换页签，以及 Esc 关闭面板。
-
-## 提示与限制
-
-- 空标题的世界书条目可以预览，需要先填写标题／备注才能生成名称引用。
-- 同名角色或同一本书里的同名条目会显示提示。原插件可能读取第一个同名目标，当前预览无法消除同名歧义；建议先给它们不同的名称。
-- 修改角色名、世界书名或条目名之后，需要重新复制引用。
-- 源内容预览显示原始文本。面板不会执行其中的 EJS，也不会模拟嵌套引用展开；粘贴后的最终行为由 ST-Prompt-Template 和酒馆设置决定。
-- 世界书模板保留 `-%>`，与既定格式一致，会移除紧随模板后的第一个换行。
-- 当前生成默认分隔符 `<% ... %>` 的 EJS 模板。
-- 用“刷新列表”重新读取可选来源和所选内容。通过酒馆的世界书读取接口加载数据，遵循它的缓存行为。
-- 运行时无需第三方库，不修改角色卡、世界书或聊天内容；仅保存上次使用的页签。
-
-## 开发与验证
-
-Node.js 22 下运行基础测试：
-
-```text
+```bash
+npm run check
 npm test
 ```
 
-浏览器验证需要可用的 `playwright` 包与 Chrome（可通过 `ST_REFERENCE_BROWSER` 选择其他已安装通道）。运行 `npm run test:browser`，测试直接加载扩展入口和样式，使用虚构数据检查复制、搜索、异步读取、生命周期和手机布局。可通过 `ST_REFERENCE_TEST_MODULES` 指定包含 `playwright` 的依赖目录。
+使用 ST-Prompt-Template 原生 EJS 引擎运行编译集成验证：
 
-`tests/ejs.integration.mjs` 使用原插件的实际 EJS 引擎校验模板。设置 `ST_REFERENCE_EJS_PATH` 指向 `ST-Prompt-Template/src/3rdparty/ejs.js` 后运行该文件。
+```bash
+ST_REFERENCE_EJS_PATH=/path/to/ST-Prompt-Template/src/3rdparty/ejs.js node tests/ejs.integration.mjs
+```
+
+运行真实浏览器端到端验证（桌面端 + 手机多分辨率触屏模拟）：
+
+```bash
+ST_REFERENCE_TEST_MODULES=/path/to/node_modules npm run test:browser
+```
+
+构建发布 ZIP 包（自动从 `manifest.json` 读取版本号生成 `ST-Reference-Panel-v<version>.zip`）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\package.ps1
+```
 
 ## 参考接口
 

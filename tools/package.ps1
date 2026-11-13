@@ -2,8 +2,14 @@ param([string]$OutputPath)
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$manifestPath = Join-Path $projectRoot 'manifest.json'
+$manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$version = [string]$manifest.version
+if (-not $version) {
+    throw 'Missing version in manifest.json'
+}
 if (-not $OutputPath) {
-    $OutputPath = Join-Path (Split-Path $projectRoot -Parent) 'ST-Reference-Panel-v1.0.0.zip'
+    $OutputPath = Join-Path (Split-Path $projectRoot -Parent) ("ST-Reference-Panel-v$version.zip")
 }
 $OutputPath = [IO.Path]::GetFullPath($OutputPath)
 $files = @('manifest.json', 'index.js', 'core.js', 'adapter.js', 'panel.js', 'clipboard.js', 'style.css', 'README.md', 'LICENSE')

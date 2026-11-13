@@ -13,6 +13,7 @@
         .list-group-item { border: 1px solid #4c5360; padding: 12px; border-radius: 8px; cursor: pointer; }
         .flex-container { display: flex; }.flexGap5 { gap: 5px; }
         p { line-height: 1.7; opacity: .75; }
+        #send_textarea { width: 100%; box-sizing: border-box; margin-top: 16px; background: #20252d; color: #e6e9ee; border: 1px solid #4c5360; border-radius: 8px; padding: 10px; font: inherit; }
     </style>
 </head>
 <body>
@@ -20,15 +21,17 @@
         <h1>SillyTavern 引用面板</h1>
         <p>本地验证环境 · 直接加载扩展文件 · 使用虚构的角色卡和世界书数据</p>
         <div id="extensionsMenu"></div>
+        <textarea id="send_textarea" rows="3">前缀 后缀</textarea>
         <div id="extensions_settings2" hidden></div>
     </main>
+    <div id="toast-container"></div>
     <script>
         const fullCharacters = [
             { name: '林晚', avatar: 'lin.png', description: '林晚是住在月光街区的书店店主。她说话温和，喜欢收集旧地图，遇到熟悉的人时会主动分享新发现。\n\n她与邻居保持着友好的关系，也会认真倾听来访者的故事。',
                 personality: '温和、细心，偶尔会因好奇心而忘记时间。', scenario: '傍晚的书店，窗外刚下过一场雨。',
                 first_mes: '你来得正好，今天收到一本有意思的旧书。', mes_example: '<START>\n{{char}}: 要不要一起看看这张地图？',
                 data: { system_prompt: '保持自然对话。', post_history_instructions: '', creator_notes: '测试角色',
-                    alternate_greetings: ['第一段问候', '第二段问候'], extensions: { depth_prompt: { prompt: '保持人物性格一致。' },
+                    alternate_greetings: ['第一段问候', '第二段问候'], extensions: { world: '城市设定', depth_prompt: { prompt: '保持人物性格一致。' },
                         自定义: { 力量: 0, 已解锁: false, 'a.b': ["引号 O'Brien", '特殊路径'] } } } },
             { name: '明月的姐姐', avatar: 'sister.png', description: '姐姐的描述', data: {} },
             { name: '明月', avatar: 'moon.png', description: '明月的描述', data: {} },
@@ -43,10 +46,12 @@
                 3: { uid: 3, comment: '', key: [], content: '无标题内容', displayIndex: 3 },
                 10: { uid: 10, comment: '重复标题', key: ['重复'], content: '第一个重复条目', displayIndex: 4 },
                 20: { uid: 20, comment: '重复标题', key: ['重复'], content: '第二个重复条目', displayIndex: 5 },
+                30: { uid: 30, comment: '[InitialVariables] 初始状态', key: [], content: 'stat:\n  hp: 100\n  maxHp: 100\n', displayIndex: 6 },
             } },
             '慢速世界书': { entries: { 0: { uid: 0, comment: '慢速条目', key: [], content: '慢速内容' } } },
             '读取失败': { entries: { 0: { uid: 0, comment: '恢复后的条目', key: [], content: '恢复' } } },
         };
+        window.fixtureBooks = books;
         window.fixtureDelays = { '慢速世界书': 250 };
         window.fixtureFailures = new Set(['读取失败']);
         window.fixtureLoads = [];
@@ -60,9 +65,85 @@
         };
         window.fixtureWorldNames = worldNames;
         window.fixtureLoadWorld = loadWorld;
+
+        const listeners = new Map();
+        const eventSource = {
+            on(evt, fn) {
+                if (!listeners.has(evt)) listeners.set(evt, new Set());
+                listeners.get(evt).add(fn);
+            },
+            removeListener(evt, fn) {
+                listeners.get(evt)?.delete(fn);
+            },
+            emit(evt, ...args) {
+                for (const fn of [...(listeners.get(evt) ?? [])]) fn(...args);
+            },
+        };
+        window.fixtureListeners = listeners;
+
+        const savedSettings = JSON.parse(localStorage.getItem('srp-fixture-settings') || '{}');
+        const extensionSettings = {
+            variables: { global: { season: 'autumn' } },
+            quickReplyV2: {
+                config: {
+                    setList: [{
+                        set: {
+                            name: '全局快捷栏',
+                            qrList: [{ label: '查看状态', title: '展示状态栏', message: '请输出当前角色状态栏。' }],
+                        },
+                    }],
+                },
+            },
+            ...savedSettings,
+        };
+
+        const presetList = {
+            preset_names: ['Reborn 默认预设', '备用文风预设'],
+            presets: [
+                {
+                    prompts: [
+                        { identifier: 'main', name: '主系统提示', role: 'system', content: '保持温柔细腻的叙事风格。' },
+                        { identifier: 'worldInfoBefore', name: 'World Info (before)', role: 'system', marker: true, content: '' },
+                    ],
+                },
+                {
+                    prompts: [
+                        { identifier: 'style', name: '古典文风', role: 'system', content: '行文古雅克制。' },
+                    ],
+                },
+            ],
+        };
+
         const context = {
-            characters: fullCharacters.map(c => ({ name: c.name, avatar: c.avatar, shallow: true })),
-            extensionSettings: JSON.parse(localStorage.getItem('srp-fixture-settings') || '{}'),
+            characterId: 0,
+            characters: fullCharacters.map(c => ({
+                name: c.name,
+                avatar: c.avatar,
+                shallow: true,
+                data: c.avatar === 'lin.png' ? { extensions: { world: '城市设定' } } : undefined,
+            })),
+            tags: [{ id: 'tag-bookshop', name: '书店系' }],
+            tagMap: { 'lin.png': ['tag-bookshop'] },
+            chatMetadata: {
+                world_info: '城市设定',
+                variables: { stat: { hp: 85 }, location: '月光书店' },
+            },
+            chat: [
+                { mes: '欢迎光临', swipe_id: 0, variables: [{ mood: 'gentle' }] },
+            ],
+            chatCompletionSettings: { prompts: presetList.presets[0].prompts },
+            getPresetManager: () => ({
+                getSelectedPresetName: () => 'Reborn 默认预设',
+                getPresetList: () => presetList,
+            }),
+            eventSource,
+            eventTypes: {
+                WORLDINFO_UPDATED: 'worldinfo_updated',
+                CHARACTER_EDITED: 'character_edited',
+                CHAT_CHANGED: 'chat_id_changed',
+                OAI_PRESET_CHANGED_AFTER: 'oai_preset_changed_after',
+            },
+            extensionSettings,
             powerUserSettings: { lazy_load_characters: true },
             async unshallowCharacter(index) {
                 const current = this.characters[index];

@@ -1,11 +1,12 @@
 {
   "name": "st-reference-panel",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "SillyTavern character and lorebook reference picker for ST-Prompt-Template",
+  "description": "SillyTavern character, lorebook, variable, preset and QR reference picker for ST-Prompt-Template",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "check": "node --check index.js && node --check core.js && node --check adapter.js && node --check panel.js && node --check clipboard.js",
     "test:browser": "node tests/browser.mjs"
   }
 }
